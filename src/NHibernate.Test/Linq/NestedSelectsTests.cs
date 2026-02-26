@@ -461,5 +461,59 @@ namespace NHibernate.Test.Linq
 
 			Assert.AreEqual(3, list.Count);
 		}
+
+		[Test(Description = "COS fix: two-level nested collection expand (e.g. Customers/Orders/OrderLines)")]
+		public void CustomersWithOrdersAndOrderLines()
+		{
+			var customers = db.Customers
+				.Select(c => new
+				{
+					c.CustomerId,
+					Orders = c.Orders.Select(o => new
+					{
+						o.OrderId,
+						OrderLines = o.OrderLines.Select(ol => ol.Id).ToArray()
+					}).ToArray()
+				})
+				.ToList();
+
+			Assert.That(customers.Count, Is.EqualTo(91));
+			Assert.That(customers.SelectMany(c => c.Orders).Count(), Is.EqualTo(830));
+			Assert.That(customers.SelectMany(c => c.Orders).SelectMany(o => o.OrderLines), Is.Not.Empty);
+		}
+
+		[Test(Description = "COS fix: two-level nested collection expand with employee subordinates")]
+		public void EmployeesWithSubordinatesAndTheirOrders()
+		{
+			var employees = db.Employees
+				.Select(e => new
+				{
+					e.EmployeeId,
+					Subordinates = e.Subordinates.Select(s => new
+					{
+						s.EmployeeId,
+						OrderIds = s.Orders.Select(o => o.OrderId).ToArray()
+					}).ToArray()
+				})
+				.ToList();
+
+			Assert.That(employees.Count, Is.EqualTo(9));
+			Assert.That(employees.SelectMany(e => e.Subordinates), Is.Not.Empty);
+		}
+
+		[Test(Description = "COS fix: mixed single-level collections regression after nested rewriter change")]
+		public void CustomersIdAndOrderIdsAndSingleLevelCollection()
+		{
+			var customers = db.Customers
+				.Select(c => new
+				{
+					c.CustomerId,
+					OrderIds = c.Orders.Select(o => o.OrderId).ToArray()
+				})
+				.ToList();
+
+			Assert.That(customers.Count, Is.EqualTo(91));
+			Assert.That(customers.SelectMany(c => c.OrderIds), Is.Not.Empty);
+		}
 	}
 }

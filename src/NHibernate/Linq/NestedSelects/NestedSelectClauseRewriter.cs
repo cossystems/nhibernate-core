@@ -40,9 +40,9 @@ namespace NHibernate.Linq.NestedSelects
 		private readonly ISessionFactory _sessionFactory;
 		private readonly List<Expression> _expressions;
 
-		public NestedSelectClauseRewriter Parent { get; set; }
-		public ParameterExpression Source { get; set; }
-		public QueryModel QueryModel { get; set; }
+		public NestedSelectClauseRewriter Parent { get; private set; }
+		public ParameterExpression Source { get; private set; }
+		public QueryModel QueryModel { get; private set; }
 
 		public List<Expression> Expressions
 		{
@@ -80,7 +80,9 @@ namespace NHibernate.Linq.NestedSelects
 			return ReflectionCache.EnumerableMethods.ToArrayDefinition.MakeGenericMethod(type);
 		}
 
-		private static LambdaExpression NullFilterPredicate()
+		private static readonly LambdaExpression NullFilter = CreateNullFilterPredicate();
+
+		private static LambdaExpression CreateNullFilterPredicate()
 		{
 			var t = Expression.Parameter(typeof(IGrouping<object, object[]>), "t");
 			return Expression.Lambda(
@@ -152,7 +154,7 @@ namespace NHibernate.Linq.NestedSelects
 		private static MethodCallExpression CallNullFilteredSelect(Expression selector, Expression input, System.Type elementType)
 		{
 			return Expression.Call(SelectMethod(elementType),
-				Expression.Call(WhereMethod, input, NullFilterPredicate()),
+				Expression.Call(WhereMethod, input, NullFilter),
 				selector);
 		}
 
@@ -263,6 +265,9 @@ namespace NHibernate.Linq.NestedSelects
 
 		private int FindParentIndex(int startIndex, System.Type parentType)
 		{
+			if (startIndex < 0)
+				throw new InvalidOperationException(
+					$"Could not find parent expression of type {parentType.FullName} in the expressions list.");
 			if (Expressions[startIndex].Type == parentType)
 				return startIndex;
 			return FindParentIndex(startIndex - 1, parentType);
@@ -277,7 +282,7 @@ namespace NHibernate.Linq.NestedSelects
 
 		private int JoinAndSaveExpression(MemberExpression expression, System.Type type)
 		{
-			var join = new NhJoinClause(new NameGenerator(QueryModel).GetNewName(), type, expression);
+			var join = new NhJoinClause(new NameGenerator(GetRoot()).GetNewName(), type, expression);
 			GetRoot().BodyClauses.Add(join);
 			return AddIfMissing(new QuerySourceReferenceExpression(join));
 		}
