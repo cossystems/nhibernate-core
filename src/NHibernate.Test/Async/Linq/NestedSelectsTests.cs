@@ -459,5 +459,83 @@ namespace NHibernate.Test.Linq
 
 			Assert.AreEqual(3, list.Count);
 		}
+
+		[Test(Description = "COS fix: two-level nested collection expand (e.g. Customers/Orders/OrderLines)")]
+		public async Task CustomersWithOrdersAndOrderLinesAsync()
+		{
+			var customers = await (db.Customers
+				.Select(c => new
+				{
+					c.CustomerId,
+					Orders = c.Orders.Select(o => new
+					{
+						o.OrderId,
+						OrderLines = o.OrderLines.Select(ol => ol.Id).ToArray()
+					}).ToArray()
+				})
+				.ToListAsync());
+
+			Assert.That(customers.Count, Is.EqualTo(91));
+			Assert.That(customers.SelectMany(c => c.Orders).Count(), Is.EqualTo(830));
+			Assert.That(customers.SelectMany(c => c.Orders).SelectMany(o => o.OrderLines), Is.Not.Empty);
+		}
+
+		[Test(Description = "COS fix: two-level nested collection expand with employee subordinates")]
+		public async Task EmployeesWithSubordinatesAndTheirOrdersAsync()
+		{
+			var employees = await (db.Employees
+				.Select(e => new
+				{
+					e.EmployeeId,
+					Subordinates = e.Subordinates.Select(s => new
+					{
+						s.EmployeeId,
+						OrderIds = s.Orders.Select(o => o.OrderId).ToArray()
+					}).ToArray()
+				})
+				.ToListAsync());
+
+			Assert.That(employees.Count, Is.EqualTo(9));
+			Assert.That(employees.SelectMany(e => e.Subordinates), Is.Not.Empty);
+		}
+
+		[Test(Description = "COS fix: mixed single-level collections regression after nested rewriter change")]
+		public async Task CustomersIdAndOrderIdsAndSingleLevelCollectionAsync()
+		{
+			var customers = await (db.Customers
+				.Select(c => new
+				{
+					c.CustomerId,
+					OrderIds = c.Orders.Select(o => o.OrderId).ToArray()
+				})
+				.ToListAsync());
+
+			Assert.That(customers.Count, Is.EqualTo(91));
+			Assert.That(customers.SelectMany(c => c.OrderIds), Is.Not.Empty);
+		}
+
+		[Test(Description = "COS fix: three-level nested collection expand (Employees/Subordinates/Orders/OrderLines)")]
+		public async Task EmployeesWithSubordinatesOrdersAndOrderLinesAsync()
+		{
+			var employees = await (db.Employees
+				.Select(e => new
+				{
+					e.EmployeeId,
+					Subordinates = e.Subordinates.Select(s => new
+					{
+						s.EmployeeId,
+						Orders = s.Orders.Select(o => new
+						{
+							o.OrderId,
+							OrderLines = o.OrderLines.Select(ol => ol.Id).ToArray()
+						}).ToArray()
+					}).ToArray()
+				})
+				.ToListAsync());
+
+			Assert.That(employees.Count, Is.EqualTo(9));
+			Assert.That(employees.SelectMany(e => e.Subordinates), Is.Not.Empty);
+			Assert.That(employees.SelectMany(e => e.Subordinates).SelectMany(s => s.Orders), Is.Not.Empty);
+		}
 	}
 }
