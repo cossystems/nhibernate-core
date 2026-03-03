@@ -513,5 +513,29 @@ namespace NHibernate.Test.Linq
 			Assert.That(customers.Count, Is.EqualTo(91));
 			Assert.That(customers.SelectMany(c => c.OrderIds), Is.Not.Empty);
 		}
+
+		[Test(Description = "COS fix: three-level nested collection expand (Employees/Subordinates/Orders/OrderLines)")]
+		public async Task EmployeesWithSubordinatesOrdersAndOrderLinesAsync()
+		{
+			var employees = await (db.Employees
+				.Select(e => new
+				{
+					e.EmployeeId,
+					Subordinates = e.Subordinates.Select(s => new
+					{
+						s.EmployeeId,
+						Orders = s.Orders.Select(o => new
+						{
+							o.OrderId,
+							OrderLines = o.OrderLines.Select(ol => ol.Id).ToArray()
+						}).ToArray()
+					}).ToArray()
+				})
+				.ToListAsync());
+
+			Assert.That(employees.Count, Is.EqualTo(9));
+			Assert.That(employees.SelectMany(e => e.Subordinates), Is.Not.Empty);
+			Assert.That(employees.SelectMany(e => e.Subordinates).SelectMany(s => s.Orders), Is.Not.Empty);
+		}
 	}
 }
